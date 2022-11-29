@@ -1,5 +1,5 @@
 import torch
-import gym
+# import gym
 import os
 import sys
 import numpy as np
@@ -12,8 +12,8 @@ import pickle
 sys.path.insert(0, 'agents')
 sys.path.insert(0, 'environments')
 
-from env_gridworld import *
-from debn_ps import *
+from environments.env_gridworld import *
+from agents.debn_ps import *
 
 '''
 Usage: run command line of the form `python run_debn_gridworld.py --agent_number (int)`
