@@ -61,6 +61,7 @@ class TaskEnvironment(object):
             self.position += np.array([action[0], 0])
         if not action[1] in self.walls[posx][posy][1]:
             self.position += np.array([0, action[1]]) 
+            
         reward = self.rewards[self.position[0], self.position[1]]
         trial_finished = False
         if reward == 1:  #reset to origin to avoid agent hanging around target all the time
