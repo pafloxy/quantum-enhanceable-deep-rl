@@ -9,6 +9,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
+from torchsummary import summary
 
 _INTERACTION = namedtuple('Interaction', ('percept', 'action', 'reward'))
 
@@ -67,6 +68,11 @@ class DEBN(nn.Module):
         self.dropout = nn.ModuleList()
         for l in range(len(dropout_rate_)):
             self.dropout.append(nn.Dropout(p=dropout_rate_[l]))
+
+        # ##checkflags
+        # print("MODEL-SUMMARY:")
+        # summary(self,(1, dim_percept+dim_action))
+
 
     def _init_weights(self, layer):
         """
