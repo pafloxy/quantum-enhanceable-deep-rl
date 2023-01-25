@@ -142,6 +142,7 @@ class RestrictedSampling:
         len_hidden : int
         len_action: int
         len_state : int
+        percept : str
         # iterations : int = 10000
         temperature : float = 1.00
         initial_state : Optional[Union[ str, MCMCState]] = None
@@ -152,7 +153,7 @@ class RestrictedSampling:
                 assert self.len_hidden + self.len_action + self.len_state == self.model.num_spins
 
                 if self.initial_state is None : 
-                        self.initial_state = MCMCState(get_random_state(self.model.num_spins), accepted=True)
+                        self.initial_state = MCMCState(get_random_state(self.len_hidden), get_random_state(self.len_action) , self.percept , accepted= True)
                 elif not isinstance(self.initial_state, MCMCState):
                         self.initial_state = MCMCState(self.initial_state, accepted=True)
                 
