@@ -279,7 +279,7 @@ class RestrictedSampling:
                         s_prime = self._get_quantum_proposition(
                         qc_initialised_to_s=qc_s
                         )
-                        s_prime = MCMCState(s_prime[:self.len_hidden], s_prime[self.len_hidden: self.len_action], s_prime[self.len_state] ) 
+                        s_prime = MCMCState(s_prime[:self.len_hidden], s_prime[self.len_hidden: self.len_hidden+self.len_action], s_prime[self.len_hidden+self.len_action:] ) 
                         if verbose: print('s_prime:', s_prime)
 
                         # accept/reject s_prime
