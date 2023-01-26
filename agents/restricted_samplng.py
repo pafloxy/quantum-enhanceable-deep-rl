@@ -56,6 +56,7 @@ class MCMCState:
 
 @dataclass(init=True)
 class MCMCChain:
+
     def __init__(self, states: Optional[List[MCMCState]] = None):
         if len(states) is None:
             self._states: List[MCMCState] = []
@@ -165,11 +166,11 @@ class RestrictedSampling:
                 
                 
 
-        def run_classical_mcmc(self, iterations):
+        def run_classical_mcmc(self, iterations, verbose:bool = False):
                 
                 energy_s = self.model.get_energy(self.current_state.bitstring)
                 print('current state: ', self.current_state)
-                for _ in tqdm(range(0, iterations), desc= 'running MCMC steps ...'):
+                for _ in tqdm(range(0, iterations), desc= 'running MCMC steps ...', disable= not verbose):
                         # get sprime #
                         s_prime = MCMCState(get_random_state(self.len_hidden), get_random_state(self.len_action) , self.current_state.fixed )
                         # print('s_prime:', s_prime)
@@ -182,7 +183,7 @@ class RestrictedSampling:
                         if accepted:
                                 s_prime.accepted = accepted
                                 self.current_state = s_prime
-                                print('current state: ', self.current_state)
+                                if verbose : print('current state: ', self.current_state)
                                 energy_s = self.model.get_energy(self.current_state.bitstring)
                         
                         self.mcmc_chain.add_state(s_prime)
@@ -299,4 +300,11 @@ class RestrictedSampling:
 
                 return self.mcmc_chain 
                 
+from torch import tensor
+def percept_to_str(percept:tensor) :
+    
+    s = ''
+    for elem in (percept[0].numpy().astype(int)) :
+        s += str(elem)
 
+    return s
