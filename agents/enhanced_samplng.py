@@ -15,7 +15,7 @@ from qumcmc.classical_mcmc_routines import test_accept, get_random_state
 from qumcmc.quantum_mcmc_routines_qulacs import *
 from typing import List
 
-
+from .debn_ps import DEBN
 ###################################################################################
 ## REDEFINE DATACLASSES ##
 ###################################################################################
@@ -127,7 +127,11 @@ class MCMCChain:
 
         return accepted_dict
 
+##TODO
+class RestrictedEnergyFunction(IsingEnergyFunction):
+     
 
+    pass
 
 ###################################################################################
 ## REDEFINE SAMPLING ROUTINES ##
@@ -169,7 +173,7 @@ class RestrictedSampling:
         def run_classical_mcmc(self, iterations, verbose:bool = False):
                 
                 energy_s = self.model.get_energy(self.current_state.bitstring)
-                print('current state: ', self.current_state)
+                if verbose : print('current state: ', self.current_state)
                 for _ in tqdm(range(0, iterations), desc= 'running MCMC steps ...', disable= not verbose):
                         # get sprime #
                         s_prime = MCMCState(get_random_state(self.len_hidden), get_random_state(self.len_action) , self.current_state.fixed )
@@ -210,8 +214,8 @@ class RestrictedSampling:
                 upper_triag_without_diag=np.triu(J,k=1)
                 theta_array=(-2*(1-gamma)*alpha*delta_time)*upper_triag_without_diag
                 pauli_z_index=[3,3]## Z tensor Z
-                for j in range(self.len_hidden, num_spins):
-                        for k in range(j+1, self.len_hidden):
+                for j in range(0, num_spins-1):
+                        for k in range(j+1, num_spins):
                                 #print("j,k is:",(j,k))
                                 target_list=[num_spins-1-j,num_spins-1-k]#num_spins-1-j,num_spins-1-(j+1)
                                 angle=theta_array[j,k]
@@ -221,7 +225,7 @@ class RestrictedSampling:
 
       
         def _get_quantum_proposition(
-            self, qc_initialised_to_s: QuantumCircuit, check_fixed: bool = True, max_checks: int = 100
+            self, qc_initialised_to_s: QuantumCircuit, check_fixed: bool = True, max_checks: int = 1000
         ) -> str:
 
             """
@@ -254,11 +258,11 @@ class RestrictedSampling:
             q_state.set_zero_state()
             qc_for_mcmc.update_quantum_state(q_state)
 
-            check_fixed_state = lambda bitstr : bitstr[ - self.initial_state.len_fixed: ] == self.initial_state.fixed
+            check_fixed_state = lambda bitstr : bitstr[ - self.initial_state.len_fixed: ] == self.percept
             if check_fixed :
                 ## repeats sampling untill right fixed state is found ##
                 right_sample = False; checks= 0
-                while not right_sample and checks < max_checks:
+                while not right_sample :#and checks < max_checks:
                     state_obtained= q_state.sampling(sampling_count= 1)[0] ; checks+= 1
                     if check_fixed_state( f"{state_obtained:0{self.model.num_spins}b}" ) : right_sample = True
                     
@@ -269,20 +273,20 @@ class RestrictedSampling:
             return f"{state_obtained:0{self.model.num_spins}b}"
 
 
-        def run_quantum_enhanced_mcmc(self, iterations:int , verbose:bool = False):
+        def run_quantum_enhanced_mcmc(self, iterations:int , num_post_selection_runs:int= 100, verbose:bool = False):
 
                 energy_s = self.model.get_energy(self.current_state.bitstring)
                 if verbose: print('current state: ', self.current_state)
                 qc_s = initialise_qc(n_spins= self.model.num_spins, bitstring= self.current_state.bitstring )
-                for _ in tqdm(range(0, iterations), desc='runnning quantum MCMC steps . ..' ):
+                for _ in tqdm(range(0, iterations), desc='runnning quantum MCMC steps . ..', disable= not verbose ):
                         
                         # get sprime #
                         # qc_s = initialise_qc(n_spins= self.model.num_spins, bitstring=self.current_state.bitstring)
                         s_prime = self._get_quantum_proposition(
-                        qc_initialised_to_s=qc_s
+                        qc_initialised_to_s=qc_s, max_checks= num_post_selection_runs
                         )
                         s_prime = MCMCState(s_prime[:self.len_hidden], s_prime[self.len_hidden: self.len_hidden+self.len_action], s_prime[self.len_hidden+self.len_action:] ) 
-                        if verbose: print('s_prime:', s_prime)
+                        # if verbose: print('s_prime:', s_prime)
 
                         # accept/reject s_prime
                         energy_sprime = self.model.get_energy(s_prime.bitstring)
@@ -299,7 +303,12 @@ class RestrictedSampling:
                                 
 
                 return self.mcmc_chain 
-                
+
+
+###################################################################################
+## HELPER FUNCTIONS ##
+###################################################################################
+
 from torch import tensor
 def percept_to_str(percept:tensor) :
     
@@ -308,3 +317,26 @@ def percept_to_str(percept:tensor) :
         s += str(elem)
 
     return s
+
+def build_energy_model(net: DEBN):
+    """ Works with only single hidden layer type RBMs """
+    
+    model_dim = net.visible.in_features + net.visible.out_features
+    # named_params = list(net.named_parameters())
+    param_dict = dict([(item[0], item[1].data) for item in net.named_parameters()])
+
+    interactions = param_dict['visible.weight'].numpy()
+    z0 = np.zeros((interactions.shape[0],interactions.shape[0])); z1 = np.zeros((interactions.shape[1],interactions.shape[1]))
+    up = np.concatenate((z0, interactions), axis= 1); down = np.concatenate( (interactions.transpose(), z1), axis= 1)
+    J = np.concatenate((up,down), axis= 0)
+
+    biases = np.append(param_dict['visible.bias'].numpy(), param_dict['b_input.weight'].numpy() )
+
+    ##checks
+    assert model_dim == len(biases)
+    assert model_dim == J.shape[0] 
+
+    ##construct model
+    model = IsingEnergyFunction(J, biases, "DEBN")
+
+    return model

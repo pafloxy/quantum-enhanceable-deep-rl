@@ -489,7 +489,7 @@ class DEBNAgent():
 
         return None
 
-    def _choose_action(self, percept, softmax_e):
+    def _choose_action(self, percept, softmax_e = 1., return_prob_vals:bool = False):
         """
         Chooses an action according to the policy networks h-value predictions.
 
@@ -508,10 +508,12 @@ class DEBNAgent():
             m_values = np.append(m_values, m_val)
         #print(m_values)
         rescale = np.amax(m_values)
-        m_values = np.exp(softmax_e*(m_values-rescale))
+        prob_values = np.exp(softmax_e*(m_values-rescale))
 
-        m_values = m_values/np.sum(m_values)
-        #print(m_values)
-        a_pos = np.random.choice(range(len(self.all_actions)), p=m_values)
-        action = self.all_actions[a_pos]
-        return action
+        prob_values = prob_values/np.sum(prob_values)
+        if return_prob_vals : return prob_values
+        else :
+            #print(m_values)
+            a_pos = np.random.choice(range(len(self.all_actions)), p=prob_values)
+            action = self.all_actions[a_pos]
+            return action
