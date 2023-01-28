@@ -7,10 +7,11 @@ from typing import Optional
 from tqdm import tqdm
 from collections import Counter
 from dataclasses import dataclass
+import matplotlib.pyplot as plt
 
 from qumcmc.basic_utils import qsm, states, MCMCChain
 # from .prob_dist import *
-from qumcmc.energy_models import IsingEnergyFunction
+from qumcmc.energy_models import IsingEnergyFunction, Exact_Sampling
 from qumcmc.classical_mcmc_routines import test_accept, get_random_state
 from qumcmc.quantum_mcmc_routines_qulacs import *
 from typing import List
@@ -138,7 +139,87 @@ class RestrictedEnergyFunction(IsingEnergyFunction):
 ###################################################################################
 
 from typing import Union
+from qumcmc.basic_utils import plot_bargraph_desc_order, plot_multiple_bargraphs
+from qumcmc.prob_dist import DiscreteProbabilityDistribution, value_sorted_dict
 
+# @dataclass
+class RestrictedExactSampling(Exact_Sampling) :
+     
+    def __init__(self, model: IsingEnergyFunction, percept:str, dims: tuple, beta: float = 1) -> None:
+          
+          assert dims[2] == len(percept)
+          self.beta = beta
+          self.dim_percept = len(percept)
+          self.percept = percept
+          self.dim_hidden = dims[0]
+          self.dim_action = dims[1]
+          self.dim_var = self.dim_action + self.dim_hidden
+          self.all_configs = [f"{k:0{self.dim_var}b}"+percept for k in range(0, 2 ** (self.dim_var))]
+
+          super().run_exact_sampling(self.beta)
+
+    def get_boltzmann_distribution(
+        self, beta:float = 1.0, sorted:bool = False, save_distribution:bool = False , return_dist:bool= True, plot_dist:bool = False
+        ) -> dict :
+        """ Get normalised boltzmann distribution over states 
+
+            ARGS:
+            ----
+            beta : inverse temperature (1/ T)
+            sorted  : if True then the states are sorted in in descending order of their probability
+            save_dist : if True then the boltzmann distribution is saved as an attribute of this class -> boltzmann_pd 
+            plot_dist : if True then plots histogram corresponding to the boltzmann distribution
+
+            RETURNS:
+            -------
+            'dict' corresponding to the distribution
+        """
+        
+        bltzmann_probs = dict( [ ( state, super().get_boltzmann_factor(state, beta= beta) ) for state in tqdm(self.all_configs, desc= 'running over all possible configurations') ] )
+        partition_sum=np.sum(np.array(list(bltzmann_probs.values())))
+        prob_vals=list(np.array(list(bltzmann_probs.values()))*(1./partition_sum))
+
+        bpd= dict(zip(self.all_configs, prob_vals ))
+        bpd_sorted_desc= value_sorted_dict( bpd, reverse=True )
+        
+        if save_distribution :
+            self.boltzmann_pd = DiscreteProbabilityDistribution(bpd_sorted_desc)
+
+        if plot_dist:
+                plt.figure(2)
+                plot_bargraph_desc_order(bpd_sorted_desc, label="analytical",plot_first_few=30); plt.legend()
+        
+        if return_dist :   
+            if sorted: 
+                return bpd_sorted_desc
+            else :
+                return bpd    
+          
+    def sampling_summary(self, plot_dist:bool=True):
+        
+        if self.exact_sampling_status :
+            tmp = np.array(list(self.boltzmann_pd.values()))
+            count_non_zero = len(tmp[tmp > 0.01])
+            
+            print("=============================================")
+            print("     MODEL : "+str(self.name)+" |  beta : "+str(self.beta) )
+            print("=============================================")
+            
+            
+            print("Num Most Probable States : " + str( count_non_zero )   )
+            print("Percept :", self.percept)
+            # print("Entropy : " + str( self.get_entropy() ))
+            print("Dims : ", (self.dim_hidden, self.dim_action, self.dim_percept) )
+            print("---------------------------------------------")
+
+            if plot_dist:
+                plot_bargraph_desc_order(self.boltzmann_pd, label= 'Boltzmann Dist.', plot_first_few= count_non_zero)
+
+        else:
+            raise RuntimeError("Please Run Exact Sampling at any specified temperature first")
+   
+
+     
 
 @dataclass
 class RestrictedSampling:
